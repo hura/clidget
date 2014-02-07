@@ -107,3 +107,24 @@
                          (let [~(dissoc system-binding :locals) resolved-state#
                                ~(vec params) params#]
                            ~@body))))))
+
+#+clj
+(defmacro for [bindings & [body]]
+  (let [parsed-bindings (clojure.core/for [[variable binding] (partition 2 bindings)]
+                          (if-not (#{:when :let} variable)
+                            (let [surrogate-var (gensym "surrogate")]
+                              {:binding-pairs [surrogate-var binding
+                                               :let [variable surrogate-var]]
+                               :surrogate-vars [surrogate-var]})
+                            {:binding-pairs [variable binding]}))
+        widget-type (gensym "clidget-for")]
+    
+    `(clojure.core/for ~(vec (mapcat :binding-pairs parsed-bindings))
+       (let [widget-key# (clojure.core/for [surrogate-var# ~(->> parsed-bindings
+                                                                 (mapcat :surrogate-vars)
+                                                                 vec)]
+                           (or (:clidget/id surrogate-var#)
+                               (:id surrogate-var#)
+                               (key surrogate-var#)))]
+         (prn widget-key#)
+         ~body))))

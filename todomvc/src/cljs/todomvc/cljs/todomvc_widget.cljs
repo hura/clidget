@@ -3,7 +3,7 @@
             [cljs.core.async :as a]
             [clojure.string :as s]
             [goog.events.KeyCodes :as kc]
-            [clidget.widget :refer [defwidget] :include-macros true])
+            [clidget.widget :as c :refer [defwidget] :include-macros true])
   (:require-macros [dommy.macros :refer [node sel1]]))
 
 (defwidget toggle-all-widget [{:keys [todos]} events-ch]
@@ -66,7 +66,7 @@
 (defwidget todo-list-widget [{:keys [todos todo-filter]} events-ch]
   (node
    [:ul#todo-list
-    (for [[id todo] (filter (comp (filter-todos todo-filter) val) todos)]
+    (c/for [[id todo] (filter (comp (filter-todos todo-filter) val) todos)]
       (todo-item-widget {:todo (assoc todo :id id)} events-ch))]))
 
 (defwidget stats-widget [{:keys [todos]}]

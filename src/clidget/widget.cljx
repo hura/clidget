@@ -1,4 +1,5 @@
 (ns clidget.widget
+  #+clj (:require [clojure.core :as clj])
   #+cljs (:require-macros [clidget.widget :refer [with-widget-cache]]))
 
 (def ^:dynamic ^:private *context* nil)
@@ -128,3 +129,57 @@
                                (key surrogate-var#)))]
          (prn widget-key#)
          ~body))))
+
+(defn split-bindings [bindings]
+  (->> bindings
+       (partition-all 2)
+       (partition-by (complement (comp keyword? first)))
+       (partition-all 2)
+       (mapcat (fn [[sym-bindings pred-bindings]]
+                 (concat (clj/for [sym (butlast sym-bindings)]
+                           {:sym-binding sym})
+                         [{:sym-binding (last sym-bindings)
+                           :pred-bindings pred-bindings}])))))
+
+#_(let [bindings '[test (range 4)
+                   test-2 (range 10)
+                   :when (even? test)
+                   :let [test-1 (dec test)]
+                   :let [test-3 (inc test-2)]]]
+    (split-bindings bindings))
+
+(defn to-loops [[{:keys [sym-binding pred-bindings]} & more] body]
+  (let [[sym form] sym-binding
+        rest-sym (gensym "rest")
+        result-sym (gensym "result")]
+    `(loop [[~sym & ~rest-sym] ~form
+            ~result-sym []]
+       (if ~sym
+         ~(reduce (fn [form [pred pred-form]]
+                    (case pred
+                      :let `(let ~pred-form
+                              ~form)
+                      :when `(if ~pred-form
+                               ~form
+                               (recur ~rest-sym ~result-sym))
+                      :while `(if ~pred-form
+                                ~form
+                                ~result-sym)))
+                  (recur ~rest-sym
+                         (if (seq more)
+                           `(into ~result-sym ~(to-loops more body))
+                           `(conj ~result-sym ~body)))
+                  (reverse pred-bindings))
+         ~result-sym))))
+
+#_(let [bindings '[x [2 2 4 6 3 1 2 4]
+                   y (range 3)
+                   :let [z (+ x y)]
+                   :when (even? z)]
+        body '[x y]]
+    (eval (to-loops (split-bindings bindings) body)))
+
+
+
+(defmacro test-for [bindings & [body]]
+  (to-loops (split-bindings bindings) body))
